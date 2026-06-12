@@ -1,39 +1,45 @@
 import sys
 from scripts.ingest import ingest
-from clients import EmbeddingsClient, ChromaService
+from clients import ChromaService
+from agent import RAGAgent
 
 
 def main():
-    # 1. Ingest corpus and embed chunks
+    # 1. Ingest corpus and store in ChromaDB
     print("=== 1. Ingesting Corpus ===")
     chunks = ingest("corpus/sample", "http://localhost:8085")
     if not chunks:
         print("No chunks produced. Exiting.", file=sys.stderr)
         return
 
-    # 2. Store in ChromaDB
-    print("\n=== 2. Storing in ChromaDB ===")
     chroma = ChromaService(persist_dir="./chroma_db", collection_name="documents")
     chroma.add_chunks(chunks)
-    print(f"Collection size: {chroma.count()} chunks")
+    print(f"Collection size: {chroma.count()} chunks\n")
 
-    # 3. Query with semantic search
-    print("\n=== 3. Semantic Search ===")
-    embed_client = EmbeddingsClient(base_url="http://localhost:8085")
+    # 2. Initialise the RAG Agent
+    print("=== 2. RAG Agent Ready ===")
+    agent = RAGAgent()
 
-    query = "What is MCP and how does it work?"
-    print(f"Query: \"{query}\"")
+    # 3. Ask questions
+    questions = [
+        "What is MCP and how does it work?",
+        "What are the key features of MCP servers?",
+    ]
 
-    query_embedding = embed_client.get_embeddings(inputs=[query]).first_embedding
-    results = chroma.query(query_embedding=query_embedding, n_results=3)
+    for question in questions:
+        print(f"\n{'='*60}")
+        print(f"Q: {question}")
+        print(f"{'='*60}")
 
-    print(f"\nTop {len(results)} results:\n")
-    for i, result in enumerate(results, start=1):
-        confidence = result.score * 100
-        print(f"  [{i}] Confidence: {confidence:.1f}%  |  ID: {result.chunk.id}")
-        print(f"      Source: {result.chunk.source}")
-        print(f"      Text:   {result.chunk.text[:120]}...")
-        print()
+        response = agent.ask(question)
+
+        print(f"\nA: {response.content}")
+        print(f"\n--- Metadata ---")
+        print(f"Model: {response.model}")
+        print(f"Tokens: {response.total_tokens}")
+        print(f"Sources used:")
+        for i, src in enumerate(response.sources, start=1):
+            print(f"  [{i}] {src.chunk.source} (confidence: {src.score * 100:.1f}%)")
 
 
 if __name__ == "__main__":

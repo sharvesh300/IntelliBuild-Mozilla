@@ -12,3 +12,4 @@ wheels/
 Qwen3.5-0.8B-Q8_0.llamafile
 minillm.encoderfile
 gemma4.llamafile
+chroma_db
