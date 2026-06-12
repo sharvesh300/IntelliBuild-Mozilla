@@ -1,66 +1,40 @@
 import sys
-from clients import LlamafileClient, EmbeddingsClient
+from scripts.ingest import ingest
+from clients import EmbeddingsClient, ChromaService
 
-def test_live_chat_completion():
-    print("=== 1. Requesting Live Chat Completion ===")
-    
-    # Initialize the client pointing to localhost:8086
-    client = LlamafileClient(base_url="http://127.0.0.1:8086")
-    
-    messages = [
-        {
-            "role": "user",
-            "content": "Explain MCP in simple terms."
-        }
-    ]
-    
-    print("Sending request to http://127.0.0.1:8086/v1/chat/completions...")
-    try:
-        response = client.create_chat_completion(
-            messages=messages,
-            temperature=0.7
-        )
-        print("\nRequest Successful!")
-        print(f"Response ID: {response.id}")
-        print(f"Model Used: {response.model}")
-        print(f"Total Tokens: {response.usage.total_tokens}")
-        if response.timings:
-            print(f"Generation Speed: {response.timings.predicted_per_second:.2f} tokens/sec")
-            
-        print("\n--- Assistant's Response ---")
-        print(response.assistant_content)
-        
-    except Exception as e:
-        print(f"Error communicating with the llamafile server: {e}", file=sys.stderr)
-        print("Please ensure the llamafile server is running on port 8086.", file=sys.stderr)
-
-def test_live_embeddings():
-    print("\n=== 2. Requesting Live Embeddings ===")
-    
-    # Initialize the embeddings client pointing to localhost:8085
-    client = EmbeddingsClient(base_url="http://127.0.0.1:8085")
-    
-    inputs = ["Hello world", "Model Context Protocol"]
-    
-    print(f"Sending request to http://127.0.0.1:8085/predict for inputs: {inputs}...")
-    try:
-        response = client.get_embeddings(inputs=inputs)
-        print("\nEmbeddings Request Successful!")
-        print(f"Model ID: {response.model_id}")
-        print(f"Number of vectors returned: {len(response.results)}")
-        
-        for idx, res in enumerate(response.results):
-            vector = res.embedding
-            print(f"  Input {idx} ('{inputs[idx]}') embedding dimensions: {len(vector)}")
-            print(f"  First 4 values: {vector[:4]}")
-            
-    except Exception as e:
-        print(f"Error communicating with the embeddings server: {e}", file=sys.stderr)
-        print("Please ensure the embeddings server is running on port 8085.", file=sys.stderr)
 
 def main():
-    test_live_chat_completion()
-    test_live_embeddings()
+    # 1. Ingest corpus and embed chunks
+    print("=== 1. Ingesting Corpus ===")
+    chunks = ingest("corpus/sample", "http://localhost:8085")
+    if not chunks:
+        print("No chunks produced. Exiting.", file=sys.stderr)
+        return
+
+    # 2. Store in ChromaDB
+    print("\n=== 2. Storing in ChromaDB ===")
+    chroma = ChromaService(persist_dir="./chroma_db", collection_name="documents")
+    chroma.add_chunks(chunks)
+    print(f"Collection size: {chroma.count()} chunks")
+
+    # 3. Query with semantic search
+    print("\n=== 3. Semantic Search ===")
+    embed_client = EmbeddingsClient(base_url="http://localhost:8085")
+
+    query = "What is MCP and how does it work?"
+    print(f"Query: \"{query}\"")
+
+    query_embedding = embed_client.get_embeddings(inputs=[query]).first_embedding
+    results = chroma.query(query_embedding=query_embedding, n_results=3)
+
+    print(f"\nTop {len(results)} results:\n")
+    for i, result in enumerate(results, start=1):
+        confidence = result.score * 100
+        print(f"  [{i}] Confidence: {confidence:.1f}%  |  ID: {result.chunk.id}")
+        print(f"      Source: {result.chunk.source}")
+        print(f"      Text:   {result.chunk.text[:120]}...")
+        print()
+
 
 if __name__ == "__main__":
     main()

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "any-agent>=1.18.0",
+    "chromadb>=1.5.9",
     "encoderfile>=0.6.2",
     "mcp>=1.27.2",
     "mcpd>=0.1.0",
