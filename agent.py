@@ -34,6 +34,7 @@ class AgentResponse(BaseModel):
     )
     model: str = Field(default="", description="Model that generated the answer")
     total_tokens: int = Field(default=0, description="Total tokens used for generation")
+    conflict: Optional[str] = Field(default=None, description="Factual conflict summary between internal documents and web search")
 
 
 # ---------------------------------------------------------------------------
@@ -163,33 +164,84 @@ class RAGAgent:
             n_results=self.n_results,
         )
 
-        # Check retrieval confidence: if no results or max score is below threshold
+        # 2. Retrieve local chunks from ChromaDB
+        local_results = []
+        if self.chroma.count() > 0:
+            local_results = self.chroma.query(
+                query_embedding=query_embedding,
+                n_results=self.n_results,
+            )
+
+        # 3. Retrieve web results from MCP Web Search
+        web_results = []
+        try:
+            tavily_data = _run_mcp_search(question)
+            for idx, res in enumerate(tavily_data.get("results", [])):
+                chunk = DocumentChunk(
+                    id=f"web_search_{idx}",
+                    text=res.get("content", ""),
+                    embedding=[],
+                    source=res.get("url", "")
+                )
+                score = res.get("score", 1.0)
+                web_results.append(SearchResult(chunk=chunk, score=score))
+        except Exception as e:
+            print(f"Failed to query MCP web search: {e}", file=sys.stderr)
+
+        # Determine if we have high-confidence local results
         confidence_threshold = 0.35
-        is_low_confidence = not results or max(r.score for r in results) < confidence_threshold
+        has_local = len(local_results) > 0 and max(r.score for r in local_results) >= confidence_threshold
 
-        if is_low_confidence:
-            print(f"Retrieval confidence is low or empty (max score: {max(r.score for r in results) if results else 0.0:.3f}). Querying web search via MCP...")
+        conflict_result = None
+        if len(local_results) > 0 and len(web_results) > 0:
+            # Invoke conflict detection using any-agent
             try:
-                tavily_data = _run_mcp_search(question)
-                web_results = []
-                for idx, res in enumerate(tavily_data.get("results", [])):
-                    chunk = DocumentChunk(
-                        id=f"web_search_{idx}",
-                        text=res.get("content", ""),
-                        embedding=[],
-                        source=res.get("url", "")
-                    )
-                    score = res.get("score", 1.0)
-                    web_results.append(SearchResult(chunk=chunk, score=score))
-                if web_results:
-                    results = web_results
+                from any_agent import AnyAgent, AgentConfig
+                conflict_config = AgentConfig(
+                    model_id="openai:qwen",
+                    api_base="http://127.0.0.1:8086/v1",
+                    api_key="none",
+                    instructions=(
+                        "You are a factual conflict detector. You are given a user query, "
+                        "retrieved internal documents, and retrieved recent web search results. "
+                        "Your job is to compare the internal documents and web search results to see "
+                        "if there is any contradiction, mismatch, or conflict (e.g., conflicting numbers, "
+                        "revenues, dates, status, or features).\n\n"
+                        "If a conflict is detected, you MUST start your response with '⚠️ Conflict detected.' "
+                        "and summarize what the internal documents say versus what the web sources say. "
+                        "Keep it concise and clear.\n"
+                        "If NO conflict is detected, reply with exactly: 'No conflict'"
+                    ),
+                    tools=[],
+                    callbacks=[]
+                )
+                conflict_agent = AnyAgent.create("tinyagent", conflict_config)
+                
+                conflict_prompt = (
+                    f"User Query: {question}\n\n"
+                    f"Internal Documents Context:\n{self._build_context(local_results)}\n\n"
+                    f"Web Search Context:\n{self._build_context(web_results)}"
+                )
+                
+                agent_run = conflict_agent.run(conflict_prompt)
+                run_output = agent_run.final_output.strip()
+                if "Conflict detected" in run_output or "⚠️" in run_output:
+                    conflict_result = run_output
             except Exception as e:
-                print(f"Failed to query MCP web search: {e}", file=sys.stderr)
+                print(f"Failed to run conflict agent: {e}", file=sys.stderr)
 
-        # 3. Build context block from retrieved chunks
+        # Decide on sources and context to pass to the final LLM generator
+        if conflict_result:
+            results = local_results + web_results
+        elif has_local:
+            results = local_results
+        else:
+            results = web_results
+
+        # 4. Build context block from selected chunks
         context = self._build_context(results)
 
-        # 4. Construct messages
+        # 5. Construct messages
         messages = [
             {"role": "system", "content": self.system_prompt},
             {
@@ -201,18 +253,23 @@ class RAGAgent:
             },
         ]
 
-        # 5. Generate answer via LLM
+        # 6. Generate answer via LLM
         completion = self.llm.create_chat_completion(
             messages=messages,
             temperature=self.temperature,
         )
 
+        final_content = completion.assistant_content or ""
+        if conflict_result:
+            final_content = f"{conflict_result}\n\n{final_content}"
+
         return AgentResponse(
             query=question,
-            content=completion.assistant_content or "",
+            content=final_content,
             sources=results,
             model=completion.model,
             total_tokens=completion.usage.total_tokens,
+            conflict=conflict_result,
         )
 
     # ------------------------------------------------------------------

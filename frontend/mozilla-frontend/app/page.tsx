@@ -14,6 +14,7 @@ interface Message {
   sources?: Source[];
   tokens?: number;
   model?: string;
+  conflict?: string;
 }
 
 interface HealthStatus {
@@ -24,7 +25,7 @@ interface HealthStatus {
   };
 }
 
-function MarkdownContent({ content }: { content: string }) {
+function MarkdownContent({ content, theme }: { content: string; theme: "dark" | "light" }) {
   const lines = content.split("\n");
   const elements: React.ReactNode[] = [];
   
@@ -37,25 +38,45 @@ function MarkdownContent({ content }: { content: string }) {
     
     return splitParts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={index} className="font-extrabold text-[#c084fc]">{part.slice(2, -2)}</strong>;
+        return (
+          <strong key={index} className={`font-extrabold ${
+            theme === "dark" ? "text-[#c084fc]" : "text-purple-700"
+          }`}>
+            {part.slice(2, -2)}
+          </strong>
+        );
       } else if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={index} className="bg-purple-950/40 border border-purple-500/20 px-1.5 py-0.5 rounded text-purple-300 font-mono text-xs">{part.slice(1, -1)}</code>;
+        return (
+          <code key={index} className={`px-1.5 py-0.5 rounded font-mono text-xs border ${
+            theme === "dark" 
+              ? "bg-purple-950/40 border-purple-500/20 text-purple-300" 
+              : "bg-purple-50 border-purple-200 text-purple-800"
+          }`}>
+            {part.slice(1, -1)}
+          </code>
+        );
       }
       return part;
     });
   };
+
+  const listClass = `list-disc pl-6 space-y-1.5 my-2 transition-colors duration-300 ${
+    theme === "dark" ? "text-zinc-300" : "text-zinc-700"
+  }`;
 
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
     
     if (trimmed.startsWith("###")) {
       if (inList) {
-        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        elements.push(<ul key={`list-${idx}`} className={listClass}>{listItems}</ul>);
         listItems = [];
         inList = false;
       }
       elements.push(
-        <h3 key={idx} className="text-sm font-bold text-purple-300 mt-4 mb-2 tracking-wide">
+        <h3 key={idx} className={`text-sm font-bold mt-4 mb-2 tracking-wide transition-colors duration-300 ${
+          theme === "dark" ? "text-purple-300" : "text-purple-800"
+        }`}>
           {parseInline(trimmed.replace(/^###\s*/, ""))}
         </h3>
       );
@@ -63,12 +84,14 @@ function MarkdownContent({ content }: { content: string }) {
     }
     if (trimmed.startsWith("##")) {
       if (inList) {
-        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        elements.push(<ul key={`list-${idx}`} className={listClass}>{listItems}</ul>);
         listItems = [];
         inList = false;
       }
       elements.push(
-        <h2 key={idx} className="text-base font-extrabold text-white mt-5 mb-2.5 tracking-wide border-b border-purple-500/10 pb-1">
+        <h2 key={idx} className={`text-base font-extrabold mt-5 mb-2.5 tracking-wide border-b pb-1 transition-colors duration-300 ${
+          theme === "dark" ? "text-white border-purple-500/10" : "text-zinc-800 border-purple-200"
+        }`}>
           {parseInline(trimmed.replace(/^##\s*/, ""))}
         </h2>
       );
@@ -76,12 +99,14 @@ function MarkdownContent({ content }: { content: string }) {
     }
     if (trimmed.startsWith("#")) {
       if (inList) {
-        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        elements.push(<ul key={`list-${idx}`} className={listClass}>{listItems}</ul>);
         listItems = [];
         inList = false;
       }
       elements.push(
-        <h1 key={idx} className="text-lg font-extrabold text-white mt-6 mb-3 tracking-wide">
+        <h1 key={idx} className={`text-lg font-extrabold mt-6 mb-3 tracking-wide transition-colors duration-300 ${
+          theme === "dark" ? "text-white" : "text-zinc-800"
+        }`}>
           {parseInline(trimmed.replace(/^#\s*/, ""))}
         </h1>
       );
@@ -101,7 +126,7 @@ function MarkdownContent({ content }: { content: string }) {
     
     if (trimmed === "") {
       if (inList) {
-        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        elements.push(<ul key={`list-${idx}`} className={listClass}>{listItems}</ul>);
         listItems = [];
         inList = false;
       }
@@ -109,26 +134,29 @@ function MarkdownContent({ content }: { content: string }) {
     }
     
     if (inList) {
-      elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+      elements.push(<ul key={`list-${idx}`} className={listClass}>{listItems}</ul>);
       listItems = [];
       inList = false;
     }
     
     elements.push(
-      <p key={idx} className="my-2.5 text-zinc-200 leading-relaxed">
+      <p key={idx} className={`my-2.5 leading-relaxed transition-colors duration-300 ${
+        theme === "dark" ? "text-zinc-200" : "text-zinc-800"
+      }`}>
         {parseInline(line)}
       </p>
     );
   });
   
   if (inList) {
-    elements.push(<ul key="list-last" className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+    elements.push(<ul key="list-last" className={listClass}>{listItems}</ul>);
   }
   
   return <div className="space-y-1">{elements}</div>;
 }
 
 export default function Home() {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [chunkCount, setChunkCount] = useState<number>(0);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -284,6 +312,7 @@ export default function Home() {
             sources: data.sources,
             tokens: data.tokens,
             model: data.model,
+            conflict: data.conflict,
           },
         ]);
       } else {
@@ -318,37 +347,43 @@ export default function Home() {
   const llmConnected = health?.services.llm_server === "connected";
 
   return (
-    <div className="flex h-screen w-full bg-[#0c0a12] text-[#f3f4f6] overflow-hidden">
+    <div className={`flex h-screen w-full overflow-hidden transition-colors duration-300 ${
+      theme === "dark" ? "bg-[#0c0a12] text-[#f3f4f6]" : "bg-[#f8f6fc] text-zinc-800"
+    }`}>
       {/* ---------------------------------------------------------------------
           Sidebar Panel
           --------------------------------------------------------------------- */}
-      <aside className="w-80 flex flex-col bg-[#0d0a15] border-r border-purple-500/10 p-5 shrink-0 overflow-y-auto">
+      <aside className={`w-80 flex flex-col p-5 shrink-0 overflow-y-auto transition-colors duration-300 border-r ${
+        theme === "dark" ? "bg-[#0d0a15] border-purple-500/10" : "bg-[#f0edf7] border-purple-500/20"
+      }`}>
         {/* Logo and Header */}
         <div className="flex items-center gap-3 mb-6">
           <svg className="w-8 h-8 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
           </svg>
           <div>
-            <h1 className="text-lg font-bold text-white tracking-wide">IntelliBuild</h1>
-            <p className="text-xs text-purple-400 font-medium">Local RAG Workspace</p>
+            <h1 className={`text-lg font-bold tracking-wide transition-colors ${theme === "dark" ? "text-white" : "text-[#1e1b4b]"}`}>IntelliBuild</h1>
+            <p className={`text-xs font-medium transition-colors ${theme === "dark" ? "text-purple-400" : "text-purple-700"}`}>Local RAG Workspace</p>
           </div>
         </div>
 
         {/* Health Check Indicators */}
-        <div className="bg-purple-950/20 border border-purple-500/10 rounded-xl p-4 mb-5 space-y-3">
+        <div className={`border rounded-xl p-4 mb-5 space-y-3 transition-colors duration-300 ${
+          theme === "dark" ? "bg-purple-950/20 border-purple-500/10" : "bg-purple-100/40 border-purple-500/20"
+        }`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-purple-300">System Connection</span>
+            <span className={`text-xs font-semibold ${theme === "dark" ? "text-purple-300" : "text-purple-800"}`}>System Connection</span>
             <span className={`inline-block w-2.5 h-2.5 rounded-full ${isHealthy ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-rose-500 shadow-[0_0_8px_#f43f5e]"}`} />
           </div>
-          <div className="space-y-2 border-t border-purple-500/10 pt-2 text-xs">
+          <div className={`space-y-2 border-t pt-2 text-xs ${theme === "dark" ? "border-purple-500/10" : "border-purple-500/20"}`}>
             <div className="flex justify-between items-center">
-              <span className="text-zinc-400">Embeddings Server (8085)</span>
+              <span className={theme === "dark" ? "text-zinc-400" : "text-zinc-600"}>Embeddings Server (8085)</span>
               <span className={embeddingsConnected ? "text-emerald-400 font-medium" : "text-rose-400 font-medium"}>
                 {embeddingsConnected ? "Online" : "Offline"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-zinc-400">LLM Server (8086)</span>
+              <span className={theme === "dark" ? "text-zinc-400" : "text-zinc-600"}>LLM Server (8086)</span>
               <span className={llmConnected ? "text-emerald-400 font-medium" : "text-rose-400 font-medium"}>
                 {llmConnected ? "Online" : "Offline"}
               </span>
@@ -358,13 +393,19 @@ export default function Home() {
 
         {/* File Drop & Ingestion */}
         <div className="flex-1 flex flex-col">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-purple-300 mb-2">Ingest Documents</h2>
+          <h2 className={`text-xs font-bold uppercase tracking-wider mb-2 transition-colors ${theme === "dark" ? "text-purple-300" : "text-purple-800"}`}>
+            Ingest Documents
+          </h2>
           
           <div
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-purple-500/20 hover:border-purple-500/40 bg-purple-950/5 hover:bg-purple-950/10 rounded-xl p-6 text-center cursor-pointer transition-all mb-3 group"
+            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all mb-3 group ${
+              theme === "dark" 
+                ? "border-purple-500/20 hover:border-purple-500/40 bg-purple-950/5 hover:bg-purple-950/10" 
+                : "border-purple-500/30 hover:border-purple-500/50 bg-purple-100/20 hover:bg-purple-100/30"
+            }`}
           >
             <input
               type="file"
@@ -377,16 +418,20 @@ export default function Home() {
             <svg className="w-8 h-8 text-purple-400/80 mx-auto mb-2 group-hover:scale-105 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
-            <span className="block text-xs font-semibold text-zinc-300">Drag & drop files here</span>
+            <span className={`block text-xs font-semibold ${theme === "dark" ? "text-zinc-300" : "text-zinc-700"}`}>Drag & drop files here</span>
             <span className="block text-[10px] text-zinc-500 mt-1">Accepts PDF, MD, TXT</span>
           </div>
 
           {/* Selected Files List */}
           {selectedFiles.length > 0 && (
-            <div className="bg-[#141021] border border-purple-500/10 rounded-lg p-2 max-h-40 overflow-y-auto mb-3 space-y-1.5">
+            <div className={`border rounded-lg p-2 max-h-40 overflow-y-auto mb-3 space-y-1.5 transition-colors ${
+              theme === "dark" ? "bg-[#141021] border-purple-500/10" : "bg-white border-purple-200"
+            }`}>
               {selectedFiles.map((file, idx) => (
-                <div key={idx} className="flex justify-between items-center text-xs bg-[#1a162b] p-1.5 rounded border border-purple-500/5">
-                  <span className="truncate max-w-[160px] text-zinc-300 font-medium">{file.name}</span>
+                <div key={idx} className={`flex justify-between items-center text-xs p-1.5 rounded border transition-colors ${
+                  theme === "dark" ? "bg-[#1a162b] border-purple-500/5" : "bg-purple-50/50 border-purple-200"
+                }`}>
+                  <span className={`truncate max-w-[160px] font-medium ${theme === "dark" ? "text-zinc-300" : "text-zinc-700"}`}>{file.name}</span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -408,10 +453,10 @@ export default function Home() {
             <button
               onClick={uploadFiles}
               disabled={isUploading}
-              className={`w-full text-xs font-bold py-2.5 px-4 rounded-lg text-white transition-all cursor-pointer shadow-lg shadow-purple-950/50 ${
+              className={`w-full text-xs font-bold py-2.5 px-4 rounded-lg text-white transition-all cursor-pointer shadow-lg ${
                 isUploading
                   ? "bg-purple-800/50 cursor-not-allowed"
-                  : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500"
+                  : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-950/20"
               }`}
             >
               {isUploading ? (
@@ -431,7 +476,7 @@ export default function Home() {
           {/* Upload Feedback */}
           {uploadFeedback && (
             <div
-              className={`mt-2 p-2.5 rounded-lg border text-xs flex gap-2 items-start ${
+              className={`mt-2 p-2.5 rounded-lg border text-xs flex gap-2 items-start transition-colors ${
                 uploadFeedback.success
                   ? "bg-emerald-950/20 border-emerald-500/20 text-emerald-400"
                   : "bg-rose-950/20 border-rose-500/20 text-rose-400"
@@ -442,19 +487,25 @@ export default function Home() {
           )}
         </div>
 
-        <div className="border-t border-purple-500/10 my-4" />
+        <div className={`border-t my-4 ${theme === "dark" ? "border-purple-500/10" : "border-purple-500/20"}`} />
 
         {/* Database Stats Card */}
-        <div className="bg-[#141021] border border-purple-500/15 rounded-xl p-4 mb-4">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">ChromaDB Status</span>
-          <div className="text-2xl font-extrabold text-[#c084fc] tracking-tight">{chunkCount}</div>
-          <span className="text-[10px] text-zinc-400">Total Text Chunks Persisted</span>
+        <div className={`border rounded-xl p-4 mb-4 transition-colors duration-300 ${
+          theme === "dark" ? "bg-[#141021] border-purple-500/15" : "bg-white border-purple-200"
+        }`}>
+          <span className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${theme === "dark" ? "text-purple-400" : "text-purple-700"}`}>ChromaDB Status</span>
+          <div className={`text-2xl font-extrabold tracking-tight ${theme === "dark" ? "text-[#c084fc]" : "text-purple-800"}`}>{chunkCount}</div>
+          <span className={theme === "dark" ? "text-zinc-400" : "text-zinc-600"}>Total Text Chunks Persisted</span>
         </div>
 
         {/* Reset Panel */}
         <button
           onClick={resetDatabase}
-          className="w-full text-xs font-bold border border-rose-500/20 text-rose-400 hover:bg-rose-950/10 py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+          className={`w-full text-xs font-bold border py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            theme === "dark" 
+              ? "border-rose-500/20 text-rose-400 hover:bg-rose-950/10" 
+              : "border-rose-500/30 text-rose-600 hover:bg-rose-50"
+          }`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -468,15 +519,51 @@ export default function Home() {
           --------------------------------------------------------------------- */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Background glow effects */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/5 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-600/5 rounded-full blur-[120px] pointer-events-none" />
+        {theme === "dark" && (
+          <>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-600/5 rounded-full blur-[120px] pointer-events-none" />
+          </>
+        )}
 
         {/* App Title Header */}
-        <header className="h-16 border-b border-purple-500/10 px-8 flex items-center justify-between shrink-0 bg-[#0c0a12]/80 backdrop-blur-md z-10">
+        <header className={`h-16 border-b px-8 flex items-center justify-between shrink-0 backdrop-blur-md z-10 transition-colors duration-300 ${
+          theme === "dark" ? "border-purple-500/10 bg-[#0c0a12]/80" : "border-purple-500/20 bg-white/80"
+        }`}>
           <div>
-            <h2 className="text-md font-bold text-white tracking-wide">Local RAG Agent Canvas</h2>
-            <p className="text-[10px] text-zinc-400 font-medium">Verify your local RAG Q&A interface in real time</p>
+            <h2 className={`text-md font-bold tracking-wide transition-colors duration-300 ${theme === "dark" ? "text-white" : "text-zinc-800"}`}>
+              Local RAG Agent Canvas
+            </h2>
+            <p className={`text-[10px] font-medium transition-colors duration-300 ${theme === "dark" ? "text-zinc-400" : "text-zinc-600"}`}>
+              Verify your local RAG Q&A interface in real time
+            </p>
           </div>
+          
+          {/* Light/Dark Toggle Switch */}
+          <button
+            onClick={() => setTheme(prev => prev === "dark" ? "light" : "dark")}
+            className={`p-2 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold ${
+              theme === "dark" 
+                ? "bg-[#141021] border-purple-500/20 text-purple-300 hover:bg-[#1a162b]" 
+                : "bg-purple-100/50 border-purple-500/30 text-purple-800 hover:bg-purple-100"
+            }`}
+          >
+            {theme === "dark" ? (
+              <>
+                <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                </svg>
+                <span>Light Mode</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+                <span>Dark Mode</span>
+              </>
+            )}
+          </button>
         </header>
 
         {/* Chat History Area */}
@@ -503,7 +590,11 @@ export default function Home() {
                   <button
                     key={idx}
                     onClick={() => sendQuestion(prompt)}
-                    className="text-left text-xs bg-[#141021]/80 hover:bg-[#1a162b] border border-purple-500/10 hover:border-purple-500/30 p-4 rounded-xl transition-all cursor-pointer text-zinc-300 font-medium group"
+                    className={`text-left text-xs p-4 rounded-xl border transition-all cursor-pointer font-medium group ${
+                      theme === "dark"
+                        ? "bg-[#141021]/80 hover:bg-[#1a162b] border-purple-500/10 hover:border-purple-500/30 text-zinc-300"
+                        : "bg-white hover:bg-purple-50/50 border-purple-200 text-zinc-700 hover:border-purple-300 shadow-sm"
+                    }`}
                   >
                     <span>{prompt}</span>
                     <span className="block text-[10px] text-purple-400 font-medium mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -517,27 +608,55 @@ export default function Home() {
             <div className="max-w-3xl mx-auto space-y-6">
               {messages.map((message, idx) => (
                 <div key={idx} className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"}`}>
-                  <div className="flex items-center gap-2 mb-1.5 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">
+                  <div className={`flex items-center gap-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                    theme === "dark" ? "text-zinc-400" : "text-zinc-600"
+                  }`}>
                     {message.role === "user" ? "You" : "RAG Agent"}
                   </div>
                   
+                  {/* Conflict Warning Card */}
+                  {message.role === "assistant" && message.conflict && (
+                    <div className={`mb-3 p-4 rounded-xl border flex gap-3 transition-colors duration-300 w-full max-w-[85%] ${
+                      theme === "dark"
+                        ? "bg-amber-500/10 border-amber-500/20 text-amber-200"
+                        : "bg-amber-50 border-amber-300 text-amber-900 shadow-sm shadow-amber-500/5"
+                    }`}>
+                      <div className="flex-shrink-0 text-lg">⚠️</div>
+                      <div>
+                        <h4 className="font-bold text-xs uppercase tracking-wider mb-1">Factual Mismatch Detected</h4>
+                        <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{message.conflict}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Message bubble */}
                   <div
-                    className={`text-sm leading-relaxed p-4 rounded-2xl max-w-[85%] shadow-md ${
+                    className={`text-sm leading-relaxed p-4 rounded-2xl max-w-[85%] shadow-md transition-colors duration-300 ${
                       message.role === "user"
                         ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-br-none"
-                        : "bg-[#141021]/60 border border-purple-500/10 text-zinc-100 rounded-bl-none backdrop-blur-sm"
+                        : theme === "dark"
+                          ? "bg-[#141021]/60 border border-purple-500/10 text-zinc-100 rounded-bl-none backdrop-blur-sm"
+                          : "bg-white border border-purple-200 text-zinc-800 rounded-bl-none shadow-sm shadow-purple-500/5"
                     }`}
                   >
                     {message.role === "user" ? (
                       message.content
                     ) : (
-                      <MarkdownContent content={message.content} />
+                      <MarkdownContent 
+                        content={
+                          message.conflict 
+                            ? message.content.replace(message.conflict, "").trim() 
+                            : message.content
+                        } 
+                        theme={theme} 
+                      />
                     )}
 
                     {/* Meta info for bot */}
                     {message.role === "assistant" && message.model && (
-                      <div className="mt-3.5 border-t border-purple-500/10 pt-1.5 flex gap-3 text-[10px] text-purple-400 font-medium">
+                      <div className={`mt-3.5 border-t pt-1.5 flex gap-3 text-[10px] font-medium transition-colors ${
+                        theme === "dark" ? "border-purple-500/10 text-purple-400" : "border-purple-200 text-purple-700"
+                      }`}>
                         <span>Model: {message.model}</span>
                         {message.tokens && <span>Tokens: {message.tokens}</span>}
                       </div>
@@ -549,7 +668,9 @@ export default function Home() {
                     <div className="w-[85%] mt-2">
                       <button
                         onClick={() => toggleSources(idx)}
-                        className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1 cursor-pointer"
+                        className={`text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                          theme === "dark" ? "text-purple-400 hover:text-purple-300" : "text-purple-700 hover:text-purple-600"
+                        }`}
                       >
                         <svg
                           className={`w-3.5 h-3.5 transition-transform ${expandedSources[idx] ? "rotate-180" : ""}`}
@@ -567,9 +688,15 @@ export default function Home() {
                           {message.sources.map((src, sIdx) => (
                             <div
                               key={sIdx}
-                              className="border-l-2 border-purple-500 bg-purple-950/5 p-3 rounded-r-lg border border-y-purple-500/5 border-r-purple-500/5 text-xs text-zinc-300"
+                              className={`border-l-2 p-3 rounded-r-lg border transition-colors ${
+                                theme === "dark"
+                                  ? "border-purple-500 bg-purple-950/5 border-y-purple-500/5 border-r-purple-500/5 text-zinc-300"
+                                  : "border-purple-500 bg-purple-50/50 border-y-purple-200 border-r-purple-200 text-zinc-700 shadow-sm"
+                              }`}
                             >
-                              <div className="flex justify-between items-center font-bold text-[10px] text-purple-300 mb-1">
+                              <div className={`flex justify-between items-center font-bold text-[10px] mb-1 transition-colors ${
+                                theme === "dark" ? "text-purple-300" : "text-purple-800"
+                              }`}>
                                 <span>
                                   [{sIdx + 1}]{" "}
                                   {src.source.startsWith("http://") || src.source.startsWith("https://") ? (
@@ -577,7 +704,9 @@ export default function Home() {
                                       href={src.source}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-purple-400 hover:text-purple-300 underline break-all"
+                                      className={`underline break-all ${
+                                        theme === "dark" ? "text-purple-400 hover:text-purple-300" : "text-purple-700 hover:text-purple-600"
+                                      }`}
                                     >
                                       {src.source}
                                     </a>
@@ -587,7 +716,9 @@ export default function Home() {
                                 </span>
                                 <span>Relevance: {(src.score * 100).toFixed(1)}%</span>
                               </div>
-                              <div className="text-zinc-400 leading-relaxed font-sans mt-1">
+                              <div className={`leading-relaxed font-sans mt-1 transition-colors ${
+                                theme === "dark" ? "text-zinc-400" : "text-zinc-600"
+                              }`}>
                                 {src.text}
                               </div>
                             </div>
@@ -602,10 +733,14 @@ export default function Home() {
               {/* Bot typing state spinner */}
               {isGenerating && (
                 <div className="flex flex-col items-start">
-                  <div className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mb-1.5">
+                  <div className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 transition-colors ${
+                    theme === "dark" ? "text-zinc-400" : "text-zinc-600"
+                  }`}>
                     RAG Agent
                   </div>
-                  <div className="bg-[#141021]/60 border border-purple-500/10 p-4 rounded-2xl rounded-bl-none flex items-center gap-2 backdrop-blur-sm">
+                  <div className={`p-4 rounded-2xl rounded-bl-none flex items-center gap-2 backdrop-blur-sm border transition-colors duration-300 ${
+                    theme === "dark" ? "bg-[#141021]/60 border-purple-500/10" : "bg-white border-purple-200"
+                  }`}>
                     <span className="flex h-2 w-2 relative">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
@@ -628,7 +763,11 @@ export default function Home() {
         </div>
 
         {/* Chat Input Dock */}
-        <div className="p-8 bg-gradient-to-t from-[#0c0a12] via-[#0c0a12] to-transparent shrink-0">
+        <div className={`p-8 shrink-0 transition-colors duration-300 ${
+          theme === "dark" 
+            ? "bg-gradient-to-t from-[#0c0a12] via-[#0c0a12]/90 to-transparent" 
+            : "bg-gradient-to-t from-[#f8f6fc] via-[#f8f6fc]/90 to-transparent"
+        }`}>
           <div className="max-w-3xl mx-auto relative">
             <textarea
               rows={1}
@@ -642,8 +781,14 @@ export default function Home() {
               }}
               placeholder={chunkCount === 0 ? "Upload documents first to activate chat..." : "Ask a question about your documents..."}
               disabled={chunkCount === 0 || isGenerating}
-              className={`w-full bg-[#141021]/80 hover:bg-[#1a162b]/80 focus:bg-[#1a162b] border border-purple-500/15 focus:border-purple-500/40 rounded-xl py-4 pl-4 pr-14 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-purple-500/30 resize-none max-h-40 min-h-[52px] ${
-                chunkCount === 0 ? "cursor-not-allowed opacity-50" : ""
+              className={`w-full rounded-xl py-4 pl-4 pr-14 text-sm resize-none max-h-40 min-h-[52px] focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition-all duration-300 ${
+                chunkCount === 0 
+                  ? "cursor-not-allowed opacity-50" 
+                  : ""
+              } ${
+                theme === "dark"
+                  ? "bg-[#141021]/80 hover:bg-[#1a162b]/80 focus:bg-[#1a162b] border border-purple-500/15 focus:border-purple-500/40 text-zinc-100 placeholder-zinc-500"
+                  : "bg-white hover:bg-zinc-50 focus:bg-white border border-purple-200 focus:border-purple-500 text-zinc-800 placeholder-zinc-400"
               }`}
             />
             <button

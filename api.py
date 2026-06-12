@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -66,6 +66,7 @@ class ChatResponse(BaseModel):
     tokens: int
     model: str
     sources: List[SourceResponse]
+    conflict: Optional[str] = Field(default=None, description="Factual conflict details if any detected")
 
 class StatsResponse(BaseModel):
     chunk_count: int
@@ -225,7 +226,8 @@ def ask_rag_agent(request: ChatRequest) -> ChatResponse:
             answer=agent_res.content,
             tokens=agent_res.total_tokens,
             model=agent_res.model,
-            sources=sources_list
+            sources=sources_list,
+            conflict=agent_res.conflict
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent failed to process query: {e}")
