@@ -12,11 +12,12 @@ Usage:
     print(answer.content)
 """
 
+import sys
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from clients import EmbeddingsClient, ChromaService, LlamafileClient
-from models import SearchResult
+from models import SearchResult, DocumentChunk
 
 
 # ---------------------------------------------------------------------------
@@ -40,15 +41,56 @@ class AgentResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-You are a helpful assistant that answers questions using ONLY the provided context.
-If the context does not contain enough information to answer the question,
-say "I don't have enough information to answer that based on the available documents."
+You are a helpful assistant that answers questions using the provided context.
 
 Rules:
-- Be concise and direct.
-- Cite the source filename when referencing specific information.
-- Do not make up facts beyond what the context provides.\
+- Provide a detailed and comprehensive explanation based on the available facts in the context.
+- If the context does not directly answer the question but contains related or relevant information, synthesize and explain these findings in detail.
+- Cite the source (filename or URL) when referencing specific information.
+- Only make statements that are supported by the provided context. Do not make up facts.\
 """
+
+
+def _run_mcp_search(query: str) -> dict:
+    """Run MCP search tool directly by starting the FastMCP server via stdio transport."""
+    import asyncio
+    import json
+    import os
+    from dotenv import load_dotenv
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    async def _search():
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        search_tool_path = os.path.join(base_dir, "search_tool.py")
+
+        env = os.environ.copy()
+        if "TAVILY_API_KEY" not in env:
+            load_dotenv(os.path.join(base_dir, ".env"))
+            env = os.environ.copy()
+
+        server_params = StdioServerParameters(
+            command="uv",
+            args=["run", search_tool_path],
+            env=env
+        )
+
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                response = await session.call_tool("web_search", {"query": query})
+                
+                tavily_data = {}
+                for item in response.content:
+                    if hasattr(item, "text") and item.text:
+                        try:
+                            tavily_data = json.loads(item.text)
+                            break
+                        except Exception:
+                            pass
+                return tavily_data
+
+    return asyncio.run(_search())
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +162,29 @@ class RAGAgent:
             query_embedding=query_embedding,
             n_results=self.n_results,
         )
+
+        # Check retrieval confidence: if no results or max score is below threshold
+        confidence_threshold = 0.35
+        is_low_confidence = not results or max(r.score for r in results) < confidence_threshold
+
+        if is_low_confidence:
+            print(f"Retrieval confidence is low or empty (max score: {max(r.score for r in results) if results else 0.0:.3f}). Querying web search via MCP...")
+            try:
+                tavily_data = _run_mcp_search(question)
+                web_results = []
+                for idx, res in enumerate(tavily_data.get("results", [])):
+                    chunk = DocumentChunk(
+                        id=f"web_search_{idx}",
+                        text=res.get("content", ""),
+                        embedding=[],
+                        source=res.get("url", "")
+                    )
+                    score = res.get("score", 1.0)
+                    web_results.append(SearchResult(chunk=chunk, score=score))
+                if web_results:
+                    results = web_results
+            except Exception as e:
+                print(f"Failed to query MCP web search: {e}", file=sys.stderr)
 
         # 3. Build context block from retrieved chunks
         context = self._build_context(results)

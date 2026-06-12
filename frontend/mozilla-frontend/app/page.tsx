@@ -24,6 +24,110 @@ interface HealthStatus {
   };
 }
 
+function MarkdownContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  
+  let inList = false;
+  let listItems: React.ReactNode[] = [];
+  
+  const parseInline = (text: string) => {
+    const regex = /(\*\*.*?\*\*|`.*?`)/g;
+    const splitParts = text.split(regex);
+    
+    return splitParts.map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={index} className="font-extrabold text-[#c084fc]">{part.slice(2, -2)}</strong>;
+      } else if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={index} className="bg-purple-950/40 border border-purple-500/20 px-1.5 py-0.5 rounded text-purple-300 font-mono text-xs">{part.slice(1, -1)}</code>;
+      }
+      return part;
+    });
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    
+    if (trimmed.startsWith("###")) {
+      if (inList) {
+        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        listItems = [];
+        inList = false;
+      }
+      elements.push(
+        <h3 key={idx} className="text-sm font-bold text-purple-300 mt-4 mb-2 tracking-wide">
+          {parseInline(trimmed.replace(/^###\s*/, ""))}
+        </h3>
+      );
+      return;
+    }
+    if (trimmed.startsWith("##")) {
+      if (inList) {
+        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        listItems = [];
+        inList = false;
+      }
+      elements.push(
+        <h2 key={idx} className="text-base font-extrabold text-white mt-5 mb-2.5 tracking-wide border-b border-purple-500/10 pb-1">
+          {parseInline(trimmed.replace(/^##\s*/, ""))}
+        </h2>
+      );
+      return;
+    }
+    if (trimmed.startsWith("#")) {
+      if (inList) {
+        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        listItems = [];
+        inList = false;
+      }
+      elements.push(
+        <h1 key={idx} className="text-lg font-extrabold text-white mt-6 mb-3 tracking-wide">
+          {parseInline(trimmed.replace(/^#\s*/, ""))}
+        </h1>
+      );
+      return;
+    }
+    
+    if (trimmed.startsWith("*") || trimmed.startsWith("-")) {
+      inList = true;
+      const cleanLine = trimmed.replace(/^[*+-]\s*/, "");
+      listItems.push(
+        <li key={idx} className="leading-relaxed">
+          {parseInline(cleanLine)}
+        </li>
+      );
+      return;
+    }
+    
+    if (trimmed === "") {
+      if (inList) {
+        elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+        listItems = [];
+        inList = false;
+      }
+      return;
+    }
+    
+    if (inList) {
+      elements.push(<ul key={`list-${idx}`} className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+      listItems = [];
+      inList = false;
+    }
+    
+    elements.push(
+      <p key={idx} className="my-2.5 text-zinc-200 leading-relaxed">
+        {parseInline(line)}
+      </p>
+    );
+  });
+  
+  if (inList) {
+    elements.push(<ul key="list-last" className="list-disc pl-6 space-y-1.5 my-2 text-zinc-300">{listItems}</ul>);
+  }
+  
+  return <div className="space-y-1">{elements}</div>;
+}
+
 export default function Home() {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [chunkCount, setChunkCount] = useState<number>(0);
@@ -425,7 +529,11 @@ export default function Home() {
                         : "bg-[#141021]/60 border border-purple-500/10 text-zinc-100 rounded-bl-none backdrop-blur-sm"
                     }`}
                   >
-                    {message.content}
+                    {message.role === "user" ? (
+                      message.content
+                    ) : (
+                      <MarkdownContent content={message.content} />
+                    )}
 
                     {/* Meta info for bot */}
                     {message.role === "assistant" && message.model && (
@@ -462,7 +570,21 @@ export default function Home() {
                               className="border-l-2 border-purple-500 bg-purple-950/5 p-3 rounded-r-lg border border-y-purple-500/5 border-r-purple-500/5 text-xs text-zinc-300"
                             >
                               <div className="flex justify-between items-center font-bold text-[10px] text-purple-300 mb-1">
-                                <span>[{sIdx + 1}] {src.source}</span>
+                                <span>
+                                  [{sIdx + 1}]{" "}
+                                  {src.source.startsWith("http://") || src.source.startsWith("https://") ? (
+                                    <a
+                                      href={src.source}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-purple-400 hover:text-purple-300 underline break-all"
+                                    >
+                                      {src.source}
+                                    </a>
+                                  ) : (
+                                    src.source
+                                  )}
+                                </span>
                                 <span>Relevance: {(src.score * 100).toFixed(1)}%</span>
                               </div>
                               <div className="text-zinc-400 leading-relaxed font-sans mt-1">

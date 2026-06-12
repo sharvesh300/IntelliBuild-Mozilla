@@ -1,0 +1,4 @@
+[[servers]]
+name = "search"
+package = "uvx::search_tool"
+tools = ["web_search"]

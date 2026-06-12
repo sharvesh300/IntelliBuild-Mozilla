@@ -93,8 +93,8 @@ class ChromaService:
                 embedding=emb,
                 source=meta.get("source", ""),
             )
-            # Chroma cosine distance is in [0, 2]; convert to a similarity score in [0, 1]
-            score = 1.0 - (distance / 2.0)
+            # Convert cosine distance in [0, 2] to true cosine similarity in [0, 1]
+            score = max(0.0, 1.0 - distance)
             search_results.append(SearchResult(chunk=chunk, score=score))
 
         return search_results
